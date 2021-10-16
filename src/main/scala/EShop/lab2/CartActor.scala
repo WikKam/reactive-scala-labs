@@ -1,8 +1,10 @@
 package EShop.lab2
 
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import EShop.lab2.Checkout.CancelCheckout
+import akka.actor.{Actor, ActorContext, ActorRef, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -19,24 +21,63 @@ object CartActor {
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef) extends Event
 
-  def props = Props(new CartActor())
+  def props(customer: Option[ActorRef] = None) = Props(new CartActor(customer))
 }
 
-class CartActor extends Actor {
+class CartActor(customer: Option[ActorRef] = None) extends Actor {
 
   import CartActor._
 
   private val log       = Logging(context.system, this)
-  val cartTimerDuration = 5 seconds
+  val cartTimerDuration: FiniteDuration = 5 seconds
 
-  private def scheduleTimer: Cancellable = ???
+  val checkout: ActorRef = context.actorOf(Checkout.props(Some(self), customer))
 
-  def receive: Receive = ???
+  private def scheduleTimer: Cancellable = context
+    .system.scheduler.scheduleOnce(cartTimerDuration, self, ExpireCart)
 
-  def empty: Receive = ???
+  private def addItemAndChangeContext(item: Any, context: ActorContext): Unit = {
+    val cartWithItem = Cart.empty.addItem(item)
+    context become nonEmpty(cartWithItem, scheduleTimer)
+  }
 
-  def nonEmpty(cart: Cart, timer: Cancellable): Receive = ???
+  private val onCartIsEmpty: (Cancellable, ActorContext) => Unit = (timer, context) => {
+    timer.cancel()
+    context become empty
+  }
 
-  def inCheckout(cart: Cart): Receive = ???
+  private val onCartExpire = onCartIsEmpty
+
+  def receive: Receive = LoggingReceive {
+    case AddItem(item) => addItemAndChangeContext(item, context)
+  }
+
+  def empty: Receive = LoggingReceive {
+    case AddItem(item) => addItemAndChangeContext(item, context)
+  }
+
+  def nonEmpty(cart: Cart, timer: Cancellable): Receive = LoggingReceive {
+    case AddItem(item) => context become nonEmpty(cart.addItem(item), timer)
+    case RemoveItem(item) if cart.size > 0 && cart.contains(item) =>
+      val cartWithItemRemoved = cart.removeItem(item)
+      if(cartWithItemRemoved.size == 0){
+        onCartIsEmpty(timer, context)
+      }
+      else context become nonEmpty(cartWithItemRemoved, timer)
+    case ExpireCart => onCartExpire(timer, context)
+    case StartCheckout =>
+      timer.cancel()
+      checkout ! StartCheckout
+      context become inCheckout(cart)
+  }
+
+  def inCheckout(cart: Cart): Receive = LoggingReceive {
+    case ConfirmCheckoutClosed | Checkout.CheckOutClosed =>
+      context become empty
+    case ConfirmCheckoutCancelled =>
+      checkout ! CancelCheckout
+      context become nonEmpty(cart, scheduleTimer)
+  }
+
 
 }
