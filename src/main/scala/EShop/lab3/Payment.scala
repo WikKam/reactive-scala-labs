@@ -15,7 +15,7 @@ object Payment {
 
 class Payment(
   method: String,
-  orderManager: ActorRef[OrderManager.Command],
+  orderManager: ActorRef[Any],
   checkout: ActorRef[TypedCheckout.Command]
 ) {
 

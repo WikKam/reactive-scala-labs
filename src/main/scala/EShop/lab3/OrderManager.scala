@@ -93,9 +93,9 @@ class OrderManager {
     senderRef: ActorRef[Ack]
   ): Behavior[OrderManager.Command] = Behaviors.receive((context, msg) =>
     msg match {
-      case Pay(_) =>
+      case Pay(sender) =>
         paymentActorRef ! Payment.DoPayment
-        finished
+        inPayment(paymentActorRef, sender)
       case wrapped: Response =>
         wrapped.message match {
           case Payment.PaymentReceived =>

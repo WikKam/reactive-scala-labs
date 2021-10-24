@@ -22,8 +22,10 @@ class TypedCartTest
   it should "add item properly" in {
     val replyProbe = createTestProbe[Cart]()
     val cart = testKit.spawn(new TypedCartActor().start)
+    val inbox = TestInbox[Cart]()
     cart ! AddItem("testitem")
-    replyProbe.expectMessage(new Cart(List("item")))
+    cart ! ShowItems(replyProbe.ref)
+    replyProbe.expectMessage(new Cart(List("testitem")))
   }
 
   it should "be empty after adding and removing the same item" in {
@@ -31,7 +33,7 @@ class TypedCartTest
     val inbox = TestInbox[Cart]()
     behaviorTestKit.run(AddItem("testitem"))
     behaviorTestKit.run(RemoveItem("testitem"))
-    behaviorTestKit.run(GetItems(inbox.ref))
+    behaviorTestKit.run(ShowItems(inbox.ref))
     inbox.expectMessage(Cart.empty)
   }
 

@@ -1,7 +1,6 @@
 package EShop.lab3
 
 import EShop.lab2.{TypedCartActor, TypedCheckout}
-import EShop.lab3.OrderManager.ConfirmPaymentStarted
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
@@ -28,7 +27,7 @@ class TypedCheckoutTest
     checkoutTest ! SelectDeliveryMethod("mail")
     checkoutTest ! SelectPayment("paypal", orderManagerMock.ref)
 
-    orderManagerMock.expectMessageType[ConfirmPaymentStarted]
+    orderManagerMock.expectMessageType[PaymentStarted]
 
     checkoutTest ! ConfirmPaymentReceived
 
