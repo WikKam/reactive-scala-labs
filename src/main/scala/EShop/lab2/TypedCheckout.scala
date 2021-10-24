@@ -1,12 +1,13 @@
 package EShop.lab2
 
+import EShop.lab2.TypedCartActor.ConfirmCheckoutClosed
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
-import scala.language.postfixOps
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
-import EShop.lab3.OrderManager
+import EShop.lab3.{OrderManager, Payment}
 
 object TypedCheckout {
 
@@ -61,7 +62,8 @@ class TypedCheckout(
   def selectingPaymentMethod(timer: Cancellable): Behavior[TypedCheckout.Command] = Behaviors.receive(
     (context, msg) =>
       msg match {
-        case SelectPayment(_) =>
+        case SelectPayment(payment, orderManager) =>
+          val paymentRef = context.spawn(new Payment(payment, orderManager, context.self).start, "Payment")
           timer.cancel()
           processingPayment(context.scheduleOnce(paymentTimerDuration, context.self, ExpirePayment))
         case CancelCheckout =>
@@ -76,6 +78,7 @@ class TypedCheckout(
     (_, msg) =>
       msg match {
         case ConfirmPaymentReceived =>
+          cartActor ! ConfirmCheckoutClosed
           timer.cancel()
           closed
         case CancelCheckout =>
