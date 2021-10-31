@@ -3,19 +3,21 @@ package EShop.lab2
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
-import scala.language.postfixOps
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
+import EShop.lab3.OrderManager
 
 object TypedCartActor {
 
   sealed trait Command
-  case class AddItem(item: Any)        extends Command
-  case class RemoveItem(item: Any)     extends Command
-  case object ExpireCart               extends Command
-  case object StartCheckout            extends Command
-  case object ConfirmCheckoutCancelled extends Command
-  case object ConfirmCheckoutClosed    extends Command
+  case class AddItem(item: Any)                                             extends Command
+  case class RemoveItem(item: Any)                                          extends Command
+  case object ExpireCart                                                    extends Command
+  case class StartCheckout(orderManagerRef: ActorRef[Any]) extends Command
+  case object ConfirmCheckoutCancelled                                      extends Command
+  case object ConfirmCheckoutClosed                                         extends Command
+  case class ShowItems(sender: ActorRef[Cart])                              extends Command
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
@@ -35,12 +37,20 @@ class TypedCartActor {
   def empty: Behavior[TypedCartActor.Command] = Behaviors.receive(
     (context, msg) => msg match {
       case AddItem(item) => nonEmpty(Cart.empty.addItem(item), scheduleTimer(context))
+      case ShowItems(sender) =>
+        sender ! Cart.empty
+        Behaviors.same
     }
   )
 
   def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] = Behaviors.receive(
-    (_, msg) => msg match {
-      case AddItem(item) => nonEmpty(cart.addItem(item), timer)
+    (context, msg) => msg match {
+      case  ShowItems(sender) =>
+        sender ! cart
+        Behaviors.same
+      case AddItem(item) =>
+        timer.cancel()
+        nonEmpty(cart.addItem(item), timer)
       case RemoveItem(item) if cart.size > 0 && cart.contains(item) =>
         val cartWithItemRemoved = cart.removeItem(item)
         if(cartWithItemRemoved.size == 0) {
@@ -50,7 +60,10 @@ class TypedCartActor {
       case ExpireCart =>
         timer.cancel()
         empty
-      case StartCheckout =>
+      case StartCheckout(orderManager) =>
+        val typedCheckout = context.spawn(new TypedCheckout(context.self).start, "TypedCheckout")
+        typedCheckout ! TypedCheckout.StartCheckout
+        orderManager ! CheckoutStarted(typedCheckout)
         timer.cancel()
         inCheckout(cart)
     }
