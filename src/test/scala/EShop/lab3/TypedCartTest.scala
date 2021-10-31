@@ -24,7 +24,7 @@ class TypedCartTest
     val cart = testKit.spawn(new TypedCartActor().start)
     val inbox = TestInbox[Cart]()
     cart ! AddItem("testitem")
-    cart ! ShowItems(replyProbe.ref)
+    cart ! GetItems(replyProbe.ref)
     replyProbe.expectMessage(new Cart(List("testitem")))
   }
 
@@ -33,7 +33,7 @@ class TypedCartTest
     val inbox = TestInbox[Cart]()
     behaviorTestKit.run(AddItem("testitem"))
     behaviorTestKit.run(RemoveItem("testitem"))
-    behaviorTestKit.run(ShowItems(inbox.ref))
+    behaviorTestKit.run(GetItems(inbox.ref))
     inbox.expectMessage(Cart.empty)
   }
 
