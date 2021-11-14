@@ -34,9 +34,12 @@ object Payment {
           val messageAdapter = context.messageAdapter[PaymentService.Response](WrappedPaymentServiceResponse.apply)
           msg match {
             case DoPayment =>
-              val paymentService = context.spawn(Behaviors.supervise(PaymentService(method, messageAdapter))
-                .onFailure[Exception](restartStrategy), "paymentService")
-              context.watch(paymentService)
+              val supervisedPaymentService = Behaviors
+                .supervise(PaymentService(method, messageAdapter))
+                .onFailure[Exception](restartStrategy)
+              val paymentServiceActor =
+                context.spawn(supervisedPaymentService, "paymentServiceActor");
+              context.watch(paymentServiceActor)
               Behaviors.same
             case WrappedPaymentServiceResponse(PaymentSucceeded) =>
               checkout ! ConfirmPaymentReceived
