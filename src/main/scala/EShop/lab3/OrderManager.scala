@@ -2,6 +2,7 @@ package EShop.lab3
 
 import EShop.lab2.TypedCartActor.StartCheckout
 import EShop.lab2.{TypedCartActor, TypedCheckout}
+import EShop.lab5.Payment.PaymentReceived
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 
@@ -102,6 +103,9 @@ class OrderManager {
       case wrapped: Response =>
         wrapped.message match {
           case Payment.PaymentReceived =>
+            senderRef ! Done
+            finished
+          case PaymentReceived =>
             senderRef ! Done
             finished
         }

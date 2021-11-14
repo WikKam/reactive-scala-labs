@@ -2,7 +2,7 @@ package EShop.lab5
 
 import EShop.lab2.TypedCheckout
 import EShop.lab3.OrderManager
-import EShop.lab3.Payment.{DoPayment, PaymentReceived}
+import EShop.lab5.Payment.{DoPayment, PaymentReceived}
 import PaymentServiceServer.PaymentServiceServer
 import akka.actor.ActorSystem
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
@@ -34,7 +34,7 @@ class PaymentTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike {
   }
 
   it should "stop the payment process if the client request results in NotFound" in {
-    val manager  = testKit.createTestProbe[OrderManager.Command]()
+    val manager  = testKit.createTestProbe[Any]()
     val checkout = testKit.createTestProbe[TypedCheckout.Command]()
     val payment  = testKit.spawn(Payment("notfound", manager.ref, checkout.ref))
 

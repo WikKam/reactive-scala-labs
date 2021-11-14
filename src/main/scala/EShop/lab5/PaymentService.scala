@@ -22,7 +22,21 @@ object PaymentService {
     method: String,
     payment: ActorRef[Response]
   ): Behavior[HttpResponse] = Behaviors.setup { context =>
-    ???
+    context.pipeToSelf(Http(context.system).singleRequest(HttpRequest(uri = getURI(method)))) {
+      case Success(value) => value
+      case Failure(exception) => sys.error(exception.getMessage)
+    }
+
+    Behaviors.receiveMessage[HttpResponse] {
+      case HttpResponse(code, _, _, _) =>
+        code match {
+          case StatusCodes.OK =>
+            payment ! PaymentSucceeded
+            Behaviors.stopped
+          case StatusCodes.NotFound => throw PaymentClientError()
+          case _ => throw PaymentServerError()
+        }
+    }
   }
 
   // remember running PymentServiceServer() before trying payu based payments
