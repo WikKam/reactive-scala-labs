@@ -1,6 +1,7 @@
 package EShop.lab5
 
 import EShop.lab2.TypedCheckout
+import EShop.lab2.TypedCheckout.ConfirmPaymentReceived
 import EShop.lab3.OrderManager
 import EShop.lab5.Payment.{PaymentRejected, WrappedPaymentServiceResponse}
 import EShop.lab5.PaymentService.{PaymentClientError, PaymentServerError, PaymentSucceeded}
@@ -18,24 +19,39 @@ object Payment {
 
   sealed trait Response
   case object PaymentRejected extends Response
+  case object PaymentReceived extends Response
 
   val restartStrategy = SupervisorStrategy.restart.withLimit(maxNrOfRetries = 3, withinTimeRange = 1.second)
 
   def apply(
     method: String,
-    orderManager: ActorRef[OrderManager.Command],
+    orderManager: ActorRef[Any],
     checkout: ActorRef[TypedCheckout.Command]
   ): Behavior[Message] =
     Behaviors
       .receive[Message](
-        (context, msg) =>
+        (context, msg) => {
+          val messageAdapter = context.messageAdapter[PaymentService.Response](WrappedPaymentServiceResponse.apply)
           msg match {
-            case DoPayment                                       => ???
-            case WrappedPaymentServiceResponse(PaymentSucceeded) => ???
+            case DoPayment =>
+              val supervisedPaymentService = Behaviors
+                .supervise(PaymentService(method, messageAdapter))
+                .onFailure[Exception](restartStrategy)
+              val paymentServiceActor =
+                context.spawn(supervisedPaymentService, "paymentServiceActor");
+              context.watch(paymentServiceActor)
+              Behaviors.same
+            case WrappedPaymentServiceResponse(PaymentSucceeded) =>
+              checkout ! ConfirmPaymentReceived
+              orderManager ! PaymentReceived
+              Behaviors.same
+          }
         }
       )
       .receiveSignal {
-        case (context, Terminated(t)) => ???
+        case (context, Terminated(t)) =>
+          notifyAboutRejection(orderManager, checkout)
+          Behaviors.stopped
       }
 
   // please use this one to notify when supervised actor was stoped
